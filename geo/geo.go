@@ -13,9 +13,11 @@ type GeoPoint struct {
 }
 
 type Geo interface {
-	Put(point GeoPoint, data []byte) (err error)
+	Put(point GeoPoint, data []byte) error
 
-	Get(point GeoPoint) (data []byte)
+	Get(point GeoPoint) ([]byte, error)
+
+	Close() error
 }
 
 type Config struct {
@@ -66,4 +68,8 @@ func (st *store) Get(point GeoPoint) (data []byte, err error) {
 		return nil, err
 	}
 	return valCopy, nil
+}
+
+func (st *store) Close() error {
+	return st.DB.Close()
 }
