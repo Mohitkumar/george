@@ -1,75 +1,43 @@
 package geo
 
 import (
-	"log"
-	"strconv"
-
-	badger "github.com/dgraph-io/badger/v3"
+	"github.com/mohitkumar/george/persistence"
 )
 
-type GeoPoint struct {
-	Latitude  float64
-	Longitude float64
-}
-
 type Geo interface {
-	Put(point GeoPoint, data []byte) error
+	Put(latitude float64, longitude float64, data []byte) error
 
-	Get(point GeoPoint) ([]byte, error)
+	Get(latitude float64, longitude float64) ([]byte, error)
 
-	Close() error
+	RadiusQuery(latitude float64, longitude float64, radius float64) ([]map[string]interface{}, error)
 }
 
-type Config struct {
-	Dir string
+var _ = (*Geo)(nil)
+
+type geoImpl struct {
+	database persistence.DB
 }
 
-type store struct {
-	DB *badger.DB
-}
+func New(db persistence.DB) *geoImpl {
 
-func NewStore(conf Config) *store {
-	db, err := badger.Open(badger.DefaultOptions(conf.Dir))
-	if err != nil {
-		log.Fatal(err)
-		panic("failed to open Db in specefied directory")
+	g := &geoImpl{
+		database: db,
 	}
-	s := &store{
-		DB: db,
-	}
-	return s
+	return g
 }
 
-func (st *store) Put(point GeoPoint, data []byte) (err error) {
-	hash := ToGeoHash(point.Latitude, point.Longitude)
-	hashStr := strconv.FormatUint(hash, 10)
-	err = st.DB.Update(func(txn *badger.Txn) error {
-		err := txn.Set([]byte(hashStr), data)
-		return err
-	})
-	return err
+func (g *geoImpl) Put(latitude float64, longitude float64, data map[string]interface{}) (err error) {
+	return g.database.Put(latitude, longitude, data)
 }
 
-func (st *store) Get(point GeoPoint) (data []byte, err error) {
-	hash := ToGeoHash(point.Latitude, point.Longitude)
-	hashStr := strconv.FormatUint(hash, 10)
-	var valCopy []byte
-
-	err = st.DB.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(hashStr))
-		if err != nil {
-			return err
-		}
-		valCopy = make([]byte, item.ValueSize())
-		_, err = item.ValueCopy(valCopy)
-		return err
-	})
+func (g *geoImpl) Get(latitude float64, longitude float64) (data map[string]interface{}, err error) {
+	out, err := g.database.Get(latitude, longitude)
 	if err != nil {
 		return nil, err
 	}
-	return valCopy, nil
+	return out, nil
 }
 
-func (st *store) Close() error {
-	return st.DB.Close()
+func (g *geoImpl) RadiusQuery(latitude float64, longitude float64, radius float64) ([]map[string]interface{}, error) {
+	return g.database.RadiusQuery(latitude, longitude, radius)
 }
